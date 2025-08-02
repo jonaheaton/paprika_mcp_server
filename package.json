@@ -1,15 +1,35 @@
 {
-  "name": "paprika_mcp_server",
+  "name": "paprika-recipe-manager",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "MCP server for accessing Paprika recipe database",
+  "main": "server/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server/index.js",
+    "dev": "node --inspect server/index.js",
+    "test": "node test/basic-test.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.1"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "paprika",
+    "recipes",
+    "cooking",
+    "meal-planning",
+    "dxt"
+  ],
+  "author": "Paprika MCP Extension",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/paprika-mcp-extension"
   }
 }

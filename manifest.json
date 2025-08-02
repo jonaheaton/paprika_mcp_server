@@ -1,0 +1,118 @@
+{
+  "$schema": "https://schemas.anthropic.com/dxt/v0.1/manifest.schema.json",
+  "dxt_version": "0.1",
+  "name": "paprika-recipe-manager",
+  "display_name": "Paprika Recipe Manager",
+  "version": "1.0.0",
+  "description": "Access and search your Paprika recipe database with natural language queries",
+  "long_description": "A comprehensive MCP extension that provides intelligent access to your Paprika recipe database. Search recipes by ingredients, browse categories, view meal plans, check grocery lists, and explore your pantry inventory. Perfect for meal planning, cooking inspiration, and recipe management through AI-powered queries.",
+  "author": {
+    "name": "Paprika MCP Extension",
+    "email": "support@example.com",
+    "url": "https://github.com/user/paprika-mcp-extension"
+  },
+  "license": "MIT",
+  "keywords": ["recipes", "cooking", "paprika", "meal-planning", "ingredients", "grocery", "pantry"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"]
+    }
+  },
+  "tools": [
+    {
+      "name": "search_recipes",
+      "description": "Search recipes by name, ingredients, categories, or ratings with flexible filtering options"
+    },
+    {
+      "name": "get_recipe",
+      "description": "Retrieve complete recipe details including ingredients, directions, timing, and nutritional information"
+    },
+    {
+      "name": "list_categories",
+      "description": "Get all recipe categories with hierarchical structure and recipe counts"
+    },
+    {
+      "name": "get_meal_plan",
+      "description": "Retrieve planned meals for specified date ranges with associated recipes"
+    },
+    {
+      "name": "search_by_ingredients",
+      "description": "Find recipes that contain specific ingredients - perfect for 'what can I make with...' queries"
+    },
+    {
+      "name": "get_grocery_lists",
+      "description": "Access grocery lists with items, quantities, and associated recipes"
+    },
+    {
+      "name": "get_pantry_inventory",
+      "description": "Check pantry stock levels and find recipes using available pantry ingredients"
+    },
+    {
+      "name": "get_recipe_photos",
+      "description": "Retrieve photo information and metadata for recipe images"
+    },
+    {
+      "name": "get_recent_recipes",
+      "description": "Get recently added or modified recipes with configurable time ranges"
+    },
+    {
+      "name": "get_favorites",
+      "description": "Retrieve user's favorite recipes with ratings and quick access"
+    }
+  ],
+  "user_config": [
+    {
+      "name": "database_path",
+      "type": "file",
+      "description": "Path to Paprika SQLite database file",
+      "default": "${__dirname}/data/Paprika.sqlite",
+      "required": true
+    },
+    {
+      "name": "debug_mode",
+      "type": "boolean",
+      "description": "Enable detailed debug logging for troubleshooting",
+      "default": false,
+      "required": false
+    },
+    {
+      "name": "max_results",
+      "type": "number",
+      "description": "Maximum number of results to return per query",
+      "default": 50,
+      "min": 1,
+      "max": 500,
+      "required": false
+    },
+    {
+      "name": "enable_meal_planning",
+      "type": "boolean",
+      "description": "Enable meal planning features and queries",
+      "default": true,
+      "required": false
+    },
+    {
+      "name": "enable_grocery_features",
+      "type": "boolean",
+      "description": "Enable grocery list and pantry inventory features",
+      "default": true,
+      "required": false
+    }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtime": {
+      "node": ">=16.0.0"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/paprika-mcp-extension"
+  },
+  "documentation": "https://github.com/user/paprika-mcp-extension#readme",
+  "support": "https://github.com/user/paprika-mcp-extension/issues"
+}

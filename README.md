@@ -1,452 +1,314 @@
-# Paprika MCP Server
+# Paprika Recipe Manager - Claude Desktop Extension
 
-A Model Context Protocol (MCP) desktop extension for connecting Claude to your custom SQL database. This server allows Claude to query and interact with your database in real-time during conversations.
+A comprehensive MCP (Model Context Protocol) extension that provides intelligent access to your Paprika recipe database through natural language queries.
 
-## Overview
+## Features
 
-MCP desktop extensions enable you to create custom tools that Claude can use directly through the desktop app. This implementation provides a SQL database interface that allows Claude to execute queries, explore schema, and analyze your data.
+- 🔍 **Smart Recipe Search** - Search by name, ingredients, categories, ratings, and cooking times
+- 📖 **Complete Recipe Access** - Get full recipe details including ingredients, directions, and nutrition
+- 🗂️ **Category Management** - Browse hierarchical recipe categories with counts
+- 📅 **Meal Planning** - Access your planned meals by date range
+- 🥘 **Ingredient-Based Search** - "What can I make with..." functionality
+- 🛒 **Grocery Lists** - Access shopping lists with recipe associations
+- 🥫 **Pantry Management** - Check pantry inventory with expiration alerts
+- 📸 **Recipe Photos** - Access recipe image metadata
+- ⭐ **Favorites & Recent** - Quick access to favorite and recently added recipes
 
-## Project Setup
+## Requirements
 
-### 1. Initialize the Project
-
-```bash
-cd /Users/jonaheaton/Documents/paprika_mcp_server
-npm init -y
-```
-
-### 2. Install Dependencies
-
-```bash
-npm install @modelcontextprotocol/sdk
-npm install better-sqlite3  # For SQLite
-# OR for other databases:
-# npm install mysql2        # For MySQL
-# npm install pg            # For PostgreSQL
-```
-
-### 3. Create the MCP Server
-
-Create a file called `server.js`:
-
-```javascript
-#!/usr/bin/env node
-
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import Database from 'better-sqlite3'; // or your preferred SQL driver
-
-class SQLMCPServer {
-  constructor() {
-    this.server = new Server(
-      {
-        name: 'paprika-sql-server',
-        version: '0.1.0',
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
-      }
-    );
-
-    // Initialize your database connection
-    this.db = new Database('path/to/your/database.db'); // Update with your database path
-    
-    this.setupToolHandlers();
-  }
-
-  setupToolHandlers() {
-    // List available tools
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [
-          {
-            name: 'query_sql',
-            description: 'Execute a SQL query on the database',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                query: {
-                  type: 'string',
-                  description: 'SQL query to execute',
-                },
-              },
-              required: ['query'],
-            },
-          },
-          {
-            name: 'describe_tables',
-            description: 'Get schema information for all tables',
-            inputSchema: {
-              type: 'object',
-              properties: {},
-            },
-          },
-          {
-            name: 'get_table_schema',
-            description: 'Get detailed schema for a specific table',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                table_name: {
-                  type: 'string',
-                  description: 'Name of the table to describe',
-                },
-              },
-              required: ['table_name'],
-            },
-          },
-        ],
-      };
-    });
-
-    // Handle tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-
-      try {
-        switch (name) {
-          case 'query_sql':
-            return await this.executeQuery(args.query);
-          
-          case 'describe_tables':
-            return await this.describeTables();
-          
-          case 'get_table_schema':
-            return await this.getTableSchema(args.table_name);
-          
-          default:
-            throw new Error(`Unknown tool: ${name}`);
-        }
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error: ${error.message}`,
-            },
-          ],
-        };
-      }
-    });
-  }
-
-  async executeQuery(query) {
-    try {
-      // Prevent destructive operations if needed
-      const lowerQuery = query.toLowerCase().trim();
-      if (lowerQuery.startsWith('drop') || lowerQuery.startsWith('delete') || lowerQuery.startsWith('truncate')) {
-        throw new Error('Destructive operations are not allowed');
-      }
-
-      const result = this.db.prepare(query).all();
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`SQL execution failed: ${error.message}`);
-    }
-  }
-
-  async describeTables() {
-    try {
-      const tables = this.db.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='table' AND name NOT LIKE 'sqlite_%'
-      `).all();
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Available tables: ${tables.map(t => t.name).join(', ')}`,
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to describe tables: ${error.message}`);
-    }
-  }
-
-  async getTableSchema(tableName) {
-    try {
-      const schema = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(schema, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to get schema for ${tableName}: ${error.message}`);
-    }
-  }
-
-  async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-  }
-}
-
-const server = new SQLMCPServer();
-server.run().catch(console.error);
-```
-
-### 4. Configure Package.json
-
-Update your `package.json`:
-
-```json
-{
-  "name": "paprika-mcp-server",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "server.js",
-  "bin": {
-    "paprika-mcp-server": "./server.js"
-  },
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.1.0",
-    "better-sqlite3": "^8.7.0"
-  }
-}
-```
+- **Node.js**: 16.0 or higher
+- **Paprika App**: Export your database as `Paprika.sqlite`
+- **Claude Desktop**: 0.10.0 or higher (for DXT support)
 
 ## Installation
 
-### 1. Install the Package Globally
+### Option 1: Direct Installation (Development)
 
-```bash
-npm install -g .
-```
+1. Clone or download this repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Place your `Paprika.sqlite` file in the `data/` directory
+4. Test the server:
+   ```bash
+   npm start
+   ```
 
-### 2. Configure Claude Desktop
+### Option 2: DXT Package (Recommended for Production)
 
-Create or edit the Claude desktop configuration file:
+1. Package the extension:
+   ```bash
+   dxt pack .
+   ```
+2. Install the generated `.dxt` file in Claude Desktop
 
-**Location:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+## Configuration
 
+The extension supports several configuration options:
+
+### Environment Variables
+
+- `PAPRIKA_DB_PATH`: Path to your Paprika database file (default: `./data/Paprika.sqlite`)
+- `PAPRIKA_DEBUG`: Enable debug logging (`true`/`false`, default: `false`)
+- `PAPRIKA_MAX_RESULTS`: Maximum results per query (default: `50`, max: `500`)
+- `PAPRIKA_MEAL_PLANNING`: Enable meal planning features (`true`/`false`, default: `true`)
+- `PAPRIKA_GROCERY_FEATURES`: Enable grocery/pantry features (`true`/`false`, default: `true`)
+
+### DXT Configuration
+
+When installed as a DXT extension, configure through Claude Desktop's settings:
+
+- **Database Path**: Point to your `Paprika.sqlite` file
+- **Debug Mode**: Toggle detailed logging
+- **Max Results**: Set query result limits
+- **Feature Toggles**: Enable/disable meal planning and grocery features
+
+## Available Tools
+
+### Core Recipe Tools
+
+#### `search_recipes`
+Search recipes with flexible filtering options.
+
+**Parameters:**
+- `query` (string): Search in recipe names, ingredients, or directions
+- `category` (string): Filter by category name
+- `min_rating` (number): Minimum rating (0-5)
+- `max_prep_time` (number): Maximum prep time in minutes
+- `max_cook_time` (number): Maximum cook time in minutes
+- `favorites_only` (boolean): Show only favorites
+- `limit` (number): Max results (1-500, default: 50)
+- `offset` (number): Skip results for pagination
+
+**Example:**
 ```json
 {
-  "mcpServers": {
-    "paprika-database": {
-      "command": "paprika-mcp-server",
-      "args": []
-    }
-  }
+  "query": "chicken",
+  "category": "Italian",
+  "min_rating": 4,
+  "max_prep_time": 30,
+  "limit": 10
 }
 ```
 
-### 3. Restart Claude Desktop
+#### `get_recipe`
+Get complete recipe details by ID.
 
-After making the configuration changes, restart the Claude Desktop application.
+**Parameters:**
+- `recipe_id` (integer, required): Recipe ID from search results
 
-## Database-Specific Configurations
+#### `list_categories`
+Get all recipe categories with counts.
 
-### SQLite (Default)
-```javascript
-import Database from 'better-sqlite3';
-this.db = new Database('/path/to/your/database.db');
-```
+**Parameters:** None
 
-### PostgreSQL
-```javascript
-import pg from 'pg';
-const { Pool } = pg;
+### Advanced Search Tools
 
-this.db = new Pool({
-  user: 'your_user',
-  host: 'localhost',
-  database: 'your_database',
-  password: 'your_password',
-  port: 5432,
-});
+#### `search_by_ingredients`
+Find recipes containing specific ingredients.
 
-// Update query execution method for async/await
-async executeQuery(query) {
-  const result = await this.db.query(query);
-  return {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify(result.rows, null, 2),
-      },
-    ],
-  };
+**Parameters:**
+- `ingredients` (array, required): List of ingredient names
+- `exact_match` (boolean): Require all ingredients (default: false)
+- `limit` (number): Max results (default: 50)
+
+**Example:**
+```json
+{
+  "ingredients": ["chicken", "garlic", "tomatoes"],
+  "exact_match": false,
+  "limit": 20
 }
 ```
 
-### MySQL
-```javascript
-import mysql from 'mysql2/promise';
+### Meal Planning Tools
 
-this.db = await mysql.createConnection({
-  host: 'localhost',
-  user: 'your_user',
-  password: 'your_password',
-  database: 'your_database'
-});
+#### `get_meal_plan`
+Retrieve planned meals for date ranges.
 
-// Update query execution method
-async executeQuery(query) {
-  const [rows] = await this.db.execute(query);
-  return {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify(rows, null, 2),
-      },
-    ],
-  };
-}
-```
+**Parameters:**
+- `start_date` (string, required): Start date (YYYY-MM-DD)
+- `end_date` (string, required): End date (YYYY-MM-DD)
+
+### Grocery & Pantry Tools
+
+#### `get_grocery_lists`
+Access grocery lists with items and recipes.
+
+**Parameters:** None
+
+#### `get_pantry_inventory`
+Check pantry stock with expiration alerts.
+
+**Parameters:** None
+
+### Utility Tools
+
+#### `get_recipe_photos`
+Get photo metadata for recipes.
+
+**Parameters:**
+- `recipe_id` (integer, required): Recipe ID
+
+#### `get_recent_recipes`
+Get recently added/modified recipes.
+
+**Parameters:**
+- `days_back` (number): Days to look back (default: 30)
+- `limit` (number): Max results (default: 20)
+
+#### `get_favorites`
+Get favorite recipes.
+
+**Parameters:**
+- `limit` (number): Max results (default: 50)
 
 ## Usage Examples
 
-Once configured, you can ask Claude to interact with your database:
+### Natural Language Queries
 
-- **"Show me all tables in the database"**
-- **"Query the users table for recent entries"**
-- **"What's the schema of the products table?"**
-- **"Find all records where status is 'active'"**
-- **"Get a count of records by category"**
+With this MCP extension, you can ask Claude natural questions about your recipes:
 
-## Security Considerations
+- *"Find me quick chicken recipes under 30 minutes"*
+- *"What Italian desserts do I have?"*
+- *"Show me recipes I can make with tomatoes and basil"*
+- *"What's planned for dinner this week?"*
+- *"Which pantry items are expiring soon?"*
+- *"Find my highest-rated vegetarian recipes"*
 
-### Query Restrictions
-The server includes basic protection against destructive operations:
-- `DROP` statements are blocked
-- `DELETE` statements are blocked  
-- `TRUNCATE` statements are blocked
+### Direct Tool Usage
 
-### Additional Security Measures
-- Consider implementing read-only database access
-- Add input validation and sanitization
-- Implement query result size limits
-- Add authentication if needed
-- Use environment variables for sensitive configuration
-
-### Example Environment Configuration
-```javascript
-// Use environment variables for database connection
-this.db = new Database(process.env.DATABASE_PATH || './default.db');
-```
-
-## Advanced Features
-
-### 1. Query Result Formatting
-Add methods to format results as tables or charts:
+You can also call tools directly:
 
 ```javascript
-formatAsTable(data) {
-  // Convert JSON to formatted table
-}
+// Search for quick breakfast recipes
+await callTool('search_recipes', {
+  query: 'breakfast',
+  max_prep_time: 15,
+  min_rating: 3
+});
 
-formatAsChart(data) {
-  // Generate chart data
-}
+// Get ingredients for a specific recipe
+await callTool('get_recipe', {
+  recipe_id: 123
+});
+
+// Check what you can make with available ingredients
+await callTool('search_by_ingredients', {
+  ingredients: ['eggs', 'flour', 'milk']
+});
 ```
 
-### 2. Query History and Caching
-Implement query caching for performance:
+## Database Structure
 
-```javascript
-this.queryCache = new Map();
+This extension works with Paprika's SQLite database format, supporting:
 
-async executeQuery(query) {
-  if (this.queryCache.has(query)) {
-    return this.queryCache.get(query);
-  }
-  // Execute and cache result
-}
-```
-
-### 3. Multiple Database Support
-Extend to support multiple database connections:
-
-```javascript
-this.databases = {
-  primary: new Database('./primary.db'),
-  analytics: new Database('./analytics.db')
-};
-```
-
-### 4. Custom Business Logic
-Add domain-specific functions:
-
-```javascript
-{
-  name: 'get_recipe_by_ingredient',
-  description: 'Find recipes containing specific ingredients',
-  // ... implementation
-}
-```
+- **826+ Recipes** with full details
+- **30+ Categories** with hierarchy
+- **618+ Meal Plans** with dates
+- **Grocery Lists** with recipe associations
+- **Pantry Items** with expiration tracking
+- **Recipe Photos** with metadata
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Server not appearing in Claude**
-   - Check that the configuration file path is correct
-   - Verify the server is installed globally
-   - Restart Claude Desktop
+1. **Database Not Found**
+   - Ensure `Paprika.sqlite` is in the correct path
+   - Check file permissions (read access required)
+   - Verify the file isn't corrupted
 
-2. **Database connection errors**
-   - Verify database file path is correct
-   - Check database permissions
-   - Ensure database driver is installed
+2. **No Results Returned**
+   - Check if recipes are marked as deleted (`ZINTRASH = 1`)
+   - Verify search parameters are valid
+   - Try broader search terms
 
-3. **Query execution errors**
-   - Verify SQL syntax
-   - Check table and column names
-   - Review error messages in Claude
+3. **Connection Issues**
+   - Ensure Node.js 16+ is installed
+   - Check that all dependencies are installed (`npm install`)
+   - Verify stdio transport is working
 
-### Debugging
+### Debug Mode
 
-Enable verbose logging by adding debug statements:
+Enable debug logging to troubleshoot issues:
 
-```javascript
-console.error('Debug:', JSON.stringify(request, null, 2));
+```bash
+PAPRIKA_DEBUG=true npm start
 ```
+
+Or set debug mode in the DXT configuration.
+
+### Logs
+
+The server logs important events:
+- Database connection status
+- Tool calls and parameters
+- Error messages with context
+- Performance information (when debug enabled)
 
 ## Development
 
-### Testing the Server
-```bash
-# Test the server directly
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}' | node server.js
+### Project Structure
+
+```
+paprika-mcp-extension/
+├── manifest.json          # DXT extension manifest
+├── package.json           # Node.js dependencies
+├── server/
+│   ├── index.js          # Main MCP server
+│   ├── database.js       # Database abstraction layer
+│   ├── tools.js          # MCP tool definitions
+│   └── utils.js          # Utility functions
+├── data/
+│   └── Paprika.sqlite    # Your recipe database
+└── README.md
 ```
 
-### Making Changes
-1. Edit `server.js`
-2. Reinstall globally: `npm install -g .`
-3. Restart Claude Desktop
+### Testing
 
-## Contributing
+Run basic functionality tests:
+
+```bash
+npm test
+```
+
+Test individual tools:
+
+```bash
+node -e "
+const server = require('./server/index.js');
+// Test server initialization
+"
+```
+
+### Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
+3. Add tests for new functionality
+4. Ensure all tests pass
 5. Submit a pull request
+
+## Security
+
+This extension:
+- Uses **read-only** database access to prevent data corruption
+- Employs **parameterized queries** to prevent SQL injection
+- Implements **input validation** for all parameters
+- Provides **graceful error handling** without exposing sensitive data
 
 ## License
 
 MIT License - see LICENSE file for details.
+
+## Support
+
+For issues, feature requests, or questions:
+- GitHub Issues: [Create an issue](https://github.com/user/paprika-mcp-extension/issues)
+- Documentation: [Extension docs](https://github.com/user/paprika-mcp-extension#readme)
+
+---
+
+**Note**: This extension requires the Paprika recipe management app and access to its SQLite database file. It is not affiliated with or endorsed by Paprika Recipe Manager.
