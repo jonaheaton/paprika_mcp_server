@@ -7,9 +7,9 @@
   "description": "Access and search your Paprika recipe database with natural language queries",
   "long_description": "A comprehensive MCP extension that provides intelligent access to your Paprika recipe database. Search recipes by ingredients, browse categories, view meal plans, check grocery lists, and explore your pantry inventory. Perfect for meal planning, cooking inspiration, and recipe management through AI-powered queries.",
   "author": {
-    "name": "Paprika MCP Extension",
-    "email": "support@example.com",
-    "url": "https://github.com/user/paprika-mcp-extension"
+    "name": "Jonah Eaton",
+    "email": "jonah@jonaheaton.com",
+    "url": "https://github.com/jonaheaton"
   },
   "license": "MIT",
   "keywords": ["recipes", "cooking", "paprika", "meal-planning", "ingredients", "grocery", "pantry"],
@@ -63,23 +63,23 @@
       "description": "Retrieve user's favorite recipes with ratings and quick access"
     }
   ],
-  "user_config": [
-    {
-      "name": "database_path",
+  "user_config": {
+    "database_path": {
+      "title": "Database Path",
       "type": "file",
       "description": "Path to Paprika SQLite database file",
       "default": "${__dirname}/data/Paprika.sqlite",
       "required": true
     },
-    {
-      "name": "debug_mode",
+    "debug_mode": {
+      "title": "Debug Mode",
       "type": "boolean",
       "description": "Enable detailed debug logging for troubleshooting",
       "default": false,
       "required": false
     },
-    {
-      "name": "max_results",
+    "max_results": {
+      "title": "Max Results",
       "type": "number",
       "description": "Maximum number of results to return per query",
       "default": 50,
@@ -87,21 +87,21 @@
       "max": 500,
       "required": false
     },
-    {
-      "name": "enable_meal_planning",
+    "enable_meal_planning": {
+      "title": "Enable Meal Planning",
       "type": "boolean",
       "description": "Enable meal planning features and queries",
       "default": true,
       "required": false
     },
-    {
-      "name": "enable_grocery_features",
+    "enable_grocery_features": {
+      "title": "Enable Grocery Features",
       "type": "boolean",
       "description": "Enable grocery list and pantry inventory features",
       "default": true,
       "required": false
     }
-  ],
+  },
   "compatibility": {
     "claude_desktop": ">=0.10.0",
     "platforms": ["darwin", "win32", "linux"],
@@ -111,8 +111,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/paprika-mcp-extension"
+    "url": "https://github.com/jonaheaton/paprika_mcp_server"
   },
-  "documentation": "https://github.com/user/paprika-mcp-extension#readme",
-  "support": "https://github.com/user/paprika-mcp-extension/issues"
+  "documentation": "https://github.com/jonaheaton/paprika_mcp_server#readme",
+  "support": "https://github.com/jonaheaton/paprika_mcp_server/issues"
 }

@@ -26,10 +26,10 @@
     "meal-planning",
     "dxt"
   ],
-  "author": "Paprika MCP Extension",
+  "author": "Jonah Eaton <jonah@jonaheaton.com> (https://github.com/jonaheaton)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/paprika-mcp-extension"
+    "url": "https://github.com/jonaheaton/paprika_mcp_server"
   }
 }
