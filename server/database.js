@@ -1,21 +1,65 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const DatabaseBackup = require('./backup.js');
+const DatabaseValidator = require('./validation.js');
+const AuditLogger = require('./audit.js');
 
 class PaprikaDatabase {
-  constructor(dbPath, debugMode = false) {
+  constructor(dbPath, debugMode = false, config = {}) {
     this.dbPath = dbPath;
     this.debugMode = debugMode;
     this.db = null;
+    
+    // Write operation configuration
+    this.config = {
+      enableWriteOperations: config.enableWriteOperations || false,
+      autoBackupEnabled: config.autoBackupEnabled !== false, // default true
+      requireConfirmation: config.requireConfirmation !== false, // default true
+      maxDailyWrites: config.maxDailyWrites || 1000,
+      ...config
+    };
+    
+    // Initialize supporting systems
+    this.backup = new DatabaseBackup(dbPath, null, debugMode);
+    this.validator = new DatabaseValidator(debugMode);
+    this.audit = new AuditLogger(null, debugMode);
+    
+    // Transaction state
+    this.inTransaction = false;
+    this.transactionDepth = 0;
+    
+    // Write operation tracking
+    this.dailyWriteCount = 0;
+    this.lastWriteDate = null;
   }
 
   async connect() {
+    const mode = this.config.enableWriteOperations 
+      ? sqlite3.OPEN_READWRITE 
+      : sqlite3.OPEN_READONLY;
+      
+    const modeStr = this.config.enableWriteOperations ? 'READ-WRITE' : 'READ-ONLY';
+    
     return new Promise((resolve, reject) => {
-      this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READONLY, (err) => {
+      this.db = new sqlite3.Database(this.dbPath, mode, (err) => {
         if (err) {
           this.log('ERROR', `Failed to connect to database: ${err.message}`);
           reject(err);
         } else {
-          this.log('INFO', `Connected to Paprika database at ${this.dbPath}`);
+          this.log('INFO', `Connected to Paprika database at ${this.dbPath} (${modeStr} mode)`);
+          
+          // Configure database for better performance and safety
+          if (this.config.enableWriteOperations) {
+            this.db.serialize(() => {
+              // Enable foreign key constraints
+              this.db.run('PRAGMA foreign_keys = ON');
+              // Use WAL mode for better concurrency
+              this.db.run('PRAGMA journal_mode = WAL');
+              // Sync to disk more frequently for safety
+              this.db.run('PRAGMA synchronous = FULL');
+            });
+          }
+          
           resolve();
         }
       });
@@ -49,6 +93,246 @@ class PaprikaDatabase {
     if (!timestamp) return null;
     const CORE_DATA_EPOCH_OFFSET = 978307200;
     return new Date((timestamp + CORE_DATA_EPOCH_OFFSET) * 1000);
+  }
+
+  convertToSQLiteTimestamp(date) {
+    if (!date) return null;
+    const CORE_DATA_EPOCH_OFFSET = 978307200;
+    return (date.getTime() / 1000) - CORE_DATA_EPOCH_OFFSET;
+  }
+
+  // Transaction Management Methods
+
+  async beginTransaction() {
+    if (!this.config.enableWriteOperations) {
+      throw new Error('Write operations are disabled');
+    }
+
+    return new Promise((resolve, reject) => {
+      if (this.transactionDepth === 0) {
+        this.db.run('BEGIN TRANSACTION', (err) => {
+          if (err) {
+            this.log('ERROR', `Failed to begin transaction: ${err.message}`);
+            reject(err);
+          } else {
+            this.inTransaction = true;
+            this.transactionDepth = 1;
+            this.log('DEBUG', 'Transaction started');
+            resolve();
+          }
+        });
+      } else {
+        // Nested transaction - use savepoints
+        const savepointName = `sp_${this.transactionDepth}`;
+        this.db.run(`SAVEPOINT ${savepointName}`, (err) => {
+          if (err) {
+            this.log('ERROR', `Failed to create savepoint: ${err.message}`);
+            reject(err);
+          } else {
+            this.transactionDepth++;
+            this.log('DEBUG', `Savepoint ${savepointName} created`);
+            resolve();
+          }
+        });
+      }
+    });
+  }
+
+  async commitTransaction() {
+    if (!this.inTransaction) {
+      throw new Error('No active transaction to commit');
+    }
+
+    return new Promise((resolve, reject) => {
+      if (this.transactionDepth === 1) {
+        this.db.run('COMMIT', (err) => {
+          if (err) {
+            this.log('ERROR', `Failed to commit transaction: ${err.message}`);
+            reject(err);
+          } else {
+            this.inTransaction = false;
+            this.transactionDepth = 0;
+            this.log('DEBUG', 'Transaction committed');
+            resolve();
+          }
+        });
+      } else {
+        // Release savepoint
+        const savepointName = `sp_${this.transactionDepth - 1}`;
+        this.db.run(`RELEASE SAVEPOINT ${savepointName}`, (err) => {
+          if (err) {
+            this.log('ERROR', `Failed to release savepoint: ${err.message}`);
+            reject(err);
+          } else {
+            this.transactionDepth--;
+            this.log('DEBUG', `Savepoint ${savepointName} released`);
+            resolve();
+          }
+        });
+      }
+    });
+  }
+
+  async rollbackTransaction() {
+    if (!this.inTransaction) {
+      throw new Error('No active transaction to rollback');
+    }
+
+    return new Promise((resolve, reject) => {
+      if (this.transactionDepth === 1) {
+        this.db.run('ROLLBACK', (err) => {
+          if (err) {
+            this.log('ERROR', `Failed to rollback transaction: ${err.message}`);
+            reject(err);
+          } else {
+            this.inTransaction = false;
+            this.transactionDepth = 0;
+            this.log('DEBUG', 'Transaction rolled back');
+            resolve();
+          }
+        });
+      } else {
+        // Rollback to savepoint
+        const savepointName = `sp_${this.transactionDepth - 1}`;
+        this.db.run(`ROLLBACK TO SAVEPOINT ${savepointName}`, (err) => {
+          if (err) {
+            this.log('ERROR', `Failed to rollback to savepoint: ${err.message}`);
+            reject(err);
+          } else {
+            this.transactionDepth--;
+            this.log('DEBUG', `Rolled back to savepoint ${savepointName}`);
+            resolve();
+          }
+        });
+      }
+    });
+  }
+
+  async executeInTransaction(operation, operationName = 'unknown') {
+    if (!this.config.enableWriteOperations) {
+      throw new Error('Write operations are disabled');
+    }
+
+    // Check daily write limit
+    await this.checkWriteLimit();
+
+    // Create backup if enabled
+    if (this.config.autoBackupEnabled) {
+      await this.createBackupBeforeWrite();
+    }
+
+    const operationId = this.audit.logOperation(operationName);
+    const startTime = Date.now();
+
+    try {
+      await this.beginTransaction();
+      
+      const result = await operation();
+      
+      await this.commitTransaction();
+      
+      // Update write tracking
+      this.incrementWriteCount();
+      
+      const duration = Date.now() - startTime;
+      this.audit.logOperationSuccess(operationId, result, duration);
+      
+      this.log('DEBUG', `Write operation '${operationName}' completed successfully`);
+      return result;
+
+    } catch (error) {
+      try {
+        if (this.inTransaction) {
+          await this.rollbackTransaction();
+        }
+      } catch (rollbackError) {
+        this.log('ERROR', `Failed to rollback after error: ${rollbackError.message}`);
+      }
+      
+      this.audit.logOperationFailure(operationId, error, { operationName });
+      this.log('ERROR', `Write operation '${operationName}' failed: ${error.message}`);
+      
+      throw error;
+    }
+  }
+
+  // Write Operation Safety Methods
+
+  async checkWriteLimit() {
+    const today = new Date().toDateString();
+    
+    if (this.lastWriteDate !== today) {
+      this.dailyWriteCount = 0;
+      this.lastWriteDate = today;
+    }
+    
+    if (this.dailyWriteCount >= this.config.maxDailyWrites) {
+      throw new Error(`Daily write limit reached (${this.config.maxDailyWrites}). Please try again tomorrow.`);
+    }
+  }
+
+  incrementWriteCount() {
+    const today = new Date().toDateString();
+    
+    if (this.lastWriteDate !== today) {
+      this.dailyWriteCount = 0;
+      this.lastWriteDate = today;
+    }
+    
+    this.dailyWriteCount++;
+  }
+
+  async createBackupBeforeWrite() {
+    try {
+      const backupInfo = await this.backup.createBackup();
+      this.log('INFO', `Backup created before write operation: ${backupInfo.backupPath}`);
+      return backupInfo;
+    } catch (error) {
+      this.log('ERROR', `Failed to create backup before write: ${error.message}`);
+      if (this.config.requireConfirmation) {
+        throw new Error('Cannot proceed with write operation - backup failed');
+      }
+    }
+  }
+
+  // Helper method for safe SQL execution
+  async runSQL(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.run(sql, params, function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({
+            lastID: this.lastID,
+            changes: this.changes
+          });
+        }
+      });
+    });
+  }
+
+  async getSQL(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.get(sql, params, (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  async allSQL(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.all(sql, params, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      });
+    });
   }
 
   async searchRecipes(query = '', options = {}) {

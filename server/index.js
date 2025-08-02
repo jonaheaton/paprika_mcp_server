@@ -36,11 +36,23 @@ class PaprikaRecipeServer {
       max_results: parseInt(process.env.PAPRIKA_MAX_RESULTS) || 50,
       enable_meal_planning: process.env.PAPRIKA_MEAL_PLANNING !== 'false',
       enable_grocery_features: process.env.PAPRIKA_GROCERY_FEATURES !== 'false',
+      enable_write_operations: process.env.PAPRIKA_WRITE_OPERATIONS === 'true' || false,
+      auto_backup_enabled: process.env.PAPRIKA_AUTO_BACKUP !== 'false',
+      require_confirmation: process.env.PAPRIKA_REQUIRE_CONFIRMATION !== 'false',
+      max_daily_writes: parseInt(process.env.PAPRIKA_MAX_DAILY_WRITES) || 1000,
     };
 
     if (config.debug_mode) {
       console.error(`[INFO] ${new Date().toISOString()}: Configuration loaded: ${JSON.stringify(config, null, 2)}`);
     }
+    
+    // Log write operations status
+    if (config.enable_write_operations) {
+      console.error(`[WARN] ${new Date().toISOString()}: Write operations are ENABLED - ensure you have recent backups!`);
+    } else {
+      console.error(`[INFO] ${new Date().toISOString()}: Running in read-only mode (write operations disabled)`);
+    }
+    
     return config;
   }
 
@@ -57,7 +69,12 @@ class PaprikaRecipeServer {
         throw new Error(`Database file not found: ${this.config.database_path}`);
       }
 
-      this.database = new PaprikaDatabase(this.config.database_path, this.config.debug_mode);
+      this.database = new PaprikaDatabase(this.config.database_path, this.config.debug_mode, {
+        enableWriteOperations: this.config.enable_write_operations,
+        autoBackupEnabled: this.config.auto_backup_enabled,
+        requireConfirmation: this.config.require_confirmation,
+        maxDailyWrites: this.config.max_daily_writes
+      });
       await this.database.connect();
       this.log('INFO', 'Database initialized successfully');
     } catch (error) {

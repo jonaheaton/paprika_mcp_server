@@ -100,6 +100,36 @@
       "description": "Enable grocery list and pantry inventory features",
       "default": true,
       "required": false
+    },
+    "enable_write_operations": {
+      "title": "Enable Write Operations",
+      "type": "boolean",
+      "description": "Allow database modifications (backup strongly recommended)",
+      "default": false,
+      "required": false
+    },
+    "auto_backup_enabled": {
+      "title": "Auto Backup",
+      "type": "boolean",
+      "description": "Automatically backup database before write operations",
+      "default": true,
+      "required": false
+    },
+    "require_confirmation": {
+      "title": "Require Confirmation",
+      "type": "boolean",
+      "description": "Require confirmation for destructive operations",
+      "default": true,
+      "required": false
+    },
+    "max_daily_writes": {
+      "title": "Daily Write Limit",
+      "type": "number",
+      "description": "Maximum number of write operations per day",
+      "default": 1000,
+      "min": 1,
+      "max": 10000,
+      "required": false
     }
   },
   "compatibility": {
