@@ -3,7 +3,7 @@ const path = require('path');
 
 class AuditLogger {
   constructor(logDir = null, debugMode = false) {
-    this.logDir = logDir || path.join(process.cwd(), 'logs');
+    this.logDir = logDir || path.join(__dirname, '..', 'logs');
     this.debugMode = debugMode;
     this.currentLogFile = null;
     

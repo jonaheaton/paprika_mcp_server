@@ -17,7 +17,7 @@
     "type": "node",
     "entry_point": "server/index.js",
     "mcp_config": {
-      "command": "node",
+      "command": "/Users/jonaheaton/.nvm/versions/node/v22.17.1/bin/node",
       "args": ["${__dirname}/server/index.js"]
     }
   },

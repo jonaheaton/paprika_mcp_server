@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "paprika-recipe-manager": {
+      "command": "/Users/jonaheaton/.nvm/versions/node/v22.17.1/bin/node",
+      "args": ["/Users/jonaheaton/Documents/paprika_mcp_server/server/index.js"],
+      "env": {
+        "PAPRIKA_DB_PATH": "/Users/jonaheaton/Documents/paprika_mcp_server/data/Paprika.sqlite",
+        "PAPRIKA_DEBUG": "false"
+      }
+    }
+  }
+}
