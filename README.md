@@ -1,6 +1,8 @@
-# Paprika Recipe Manager - Claude Desktop Extension
+# Paprika Recipe Manager - Claude Desktop Extension ✅ **WORKING**
 
 A comprehensive MCP (Model Context Protocol) extension that provides intelligent access to your Paprika recipe database through natural language queries.
+
+> **🎉 STATUS: Production Ready** - Successfully connecting to Claude Desktop with full functionality!
 
 ## Features
 
@@ -22,26 +24,28 @@ A comprehensive MCP (Model Context Protocol) extension that provides intelligent
 
 ## Installation
 
-### Option 1: Direct Installation (Development)
+> **📋 Quick Setup**: See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions and troubleshooting.
 
-1. Clone or download this repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+### **✅ Production Installation (Recommended)**
+
+1. **Download**: Use the pre-built `paprika_mcp_server.dxt` file
+2. **Install**: Drag and drop the DXT file into Claude Desktop Extensions
+3. **Configure**: Point the database path to your `Paprika.sqlite` file
+4. **Test**: Ask Claude "Search for chicken recipes" to verify connection
+
+### **🔧 Development Installation**
+
+1. Clone this repository
+2. Install dependencies: `npm install`
 3. Place your `Paprika.sqlite` file in the `data/` directory
-4. Test the server:
-   ```bash
-   npm start
-   ```
+4. Test locally: `npm start`
+5. Package for Claude Desktop: `dxt pack .`
 
-### Option 2: DXT Package (Recommended for Production)
+### **⚠️ Common Issues**
 
-1. Package the extension:
-   ```bash
-   dxt pack .
-   ```
-2. Install the generated `.dxt` file in Claude Desktop
+- **Node.js via nvm**: The extension handles nvm paths automatically
+- **Connection errors**: Check database file path and permissions
+- **Server crashes**: Ensure you're using the latest DXT package (includes fixes)
 
 ## Configuration
 
@@ -291,13 +295,29 @@ const server = require('./server/index.js');
 4. Ensure all tests pass
 5. Submit a pull request
 
+## Recent Updates
+
+### ✅ **Fixed in Latest Version**
+- **Claude Desktop Connection**: Resolved nvm Node.js path issues 
+- **Server Stability**: Fixed log directory creation errors
+- **Production Ready**: All 10 tools working reliably
+- **Complete Documentation**: Installation guide and troubleshooting
+
+### 🚀 **Coming Soon - Write Operations**
+Phase 6B will add recipe editing capabilities:
+- Update recipe ratings and favorites
+- Modify recipe notes and categories  
+- Full meal planning management
+- Grocery list editing
+
 ## Security
 
 This extension:
-- Uses **read-only** database access to prevent data corruption
+- Uses **read-only** database access to prevent data corruption (write operations coming in Phase 6B)
 - Employs **parameterized queries** to prevent SQL injection
 - Implements **input validation** for all parameters
 - Provides **graceful error handling** without exposing sensitive data
+- **Automatic backups** before any write operations (when write features are enabled)
 
 ## License
 
