@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Logs
+logs/
+*.log
+
+# System files
+.DS_Store
+*.tmp
+*.temp
+
+# Database files (keep schema, ignore data)
+data/*.sqlite-shm
+data/*.sqlite-wal
+data/.DS_Store
+
+# Built DXT packages
+*.dxt
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local configuration
+.claude/settings.local.json
+claude_desktop_config.json
+
+# Backup files
+backups/
+*.backup
