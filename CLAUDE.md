@@ -412,6 +412,45 @@ This will transform the extension from a read-only recipe browser into a compreh
 - **Author Attribution**: Properly credited to Jonah Eaton (https://github.com/jonaheaton)
 - **GitHub Integration**: Repository links updated
 
+### 🧪 **TESTING & DEBUGGING INFRASTRUCTURE**
+- **MCP Inspector Integration**: Interactive web-based testing tool
+- **Comprehensive Test Suite**: Jest framework with unit and integration tests
+- **Automated Test Runner**: Intelligent orchestration with CI/CD support
+- **Structured Logging**: Production-ready logging system following MCP best practices
+- **Database Safety**: Connection handling and cleanup for test environments
+- **GitHub Actions**: Automated testing workflow for pull requests
+
+#### **Testing Commands Available:**
+```bash
+# MCP Inspector - Interactive Testing
+npm run test:inspector
+npx @modelcontextprotocol/inspector node server/index.js
+
+# Automated Testing
+npm run test:basic         # Quick functionality check
+npm run test:all          # Full automated test suite
+npm run test:unit         # Unit tests (database, utils, logger)
+npm run test:integration  # Integration tests (all 10 MCP tools)
+npm run test:watch        # Watch mode for development
+npm run test:coverage     # Coverage report
+npm run test:runner       # Intelligent test orchestration
+npm run test:runner:ci    # CI/CD optimized testing
+```
+
+#### **MCP Inspector Usage:**
+1. **Launch**: `npx @modelcontextprotocol/inspector node server/index.js`
+2. **Access**: Browser opens at `http://localhost:6274/?MCP_PROXY_AUTH_TOKEN=[token]`
+3. **Test Tools**: Use Tools tab to test all 10 MCP tools interactively
+4. **Monitor Logs**: Watch Notifications pane for real-time server messages
+5. **Debug Issues**: Test edge cases, invalid inputs, and error handling
+
+#### **Test Coverage:**
+- **826+ Recipe Database**: Full integration testing with real Paprika data
+- **10 MCP Tools**: Individual and integration testing for all tools
+- **Error Handling**: Database connection failures, invalid parameters
+- **Response Formats**: MCP protocol compliance and schema validation
+- **Performance**: Database query timing and connection management
+
 ### 🎯 **NEXT PHASE: WRITE FUNCTIONALITY**
 The extension is now ready for **Phase 6** implementation to add comprehensive write operations, transforming it from a read-only browser into a full recipe database management system.
 

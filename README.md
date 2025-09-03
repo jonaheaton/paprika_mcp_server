@@ -41,11 +41,112 @@ A comprehensive MCP (Model Context Protocol) extension that provides intelligent
 4. Test locally: `npm start`
 5. Package for Claude Desktop: `dxt pack .`
 
-### **⚠️ Common Issues**
+### **⚠️ Common Issues & Troubleshooting**
 
+**Installation Issues:**
 - **Node.js via nvm**: The extension handles nvm paths automatically
 - **Connection errors**: Check database file path and permissions
 - **Server crashes**: Ensure you're using the latest DXT package (includes fixes)
+
+**Testing Issues:**
+- **Inspector won't start**: Ensure no other process is using port 6274
+- **Database connection errors**: Verify `Paprika.sqlite` exists and is readable
+- **Tool test failures**: Check the Notifications pane in Inspector for detailed errors
+- **Jest test failures**: Run `npm run test:basic` first to verify core functionality
+
+**MCP Inspector Troubleshooting:**
+```bash
+# If Inspector fails to start
+npx @modelcontextprotocol/inspector node server/index.js
+
+# Check for port conflicts
+lsof -i :6274
+
+# Enable debug mode for more details
+PAPRIKA_DEBUG=true npx @modelcontextprotocol/inspector node server/index.js
+```
+
+## Testing & Development
+
+### **🔍 MCP Inspector - Interactive Testing**
+
+The MCP Inspector provides a web-based interface for testing and debugging your MCP server:
+
+```bash
+# Launch MCP Inspector for interactive testing
+npx @modelcontextprotocol/inspector node server/index.js
+
+# The Inspector will open at: http://localhost:6274/?MCP_PROXY_AUTH_TOKEN=[token]
+```
+
+**Inspector Features:**
+- **Tools Tab**: Test all 10 MCP tools with custom inputs
+- **Server Connection**: Verify connectivity and capability negotiation  
+- **Real-time Logs**: Monitor server messages and errors
+- **Schema Validation**: Check tool definitions and parameter validation
+
+**Recommended Testing Workflow:**
+1. Launch Inspector and verify connection
+2. Test each tool systematically in the Tools tab
+3. Monitor the Notifications pane for errors
+4. Test edge cases (invalid inputs, missing parameters)
+
+**Example Tool Tests to Try:**
+```json
+// search_recipes - Find chicken recipes
+{"query": "chicken", "limit": 5}
+
+// list_categories - Get all categories
+{}
+
+// get_recipe - Get recipe details (use ID from search results)
+{"recipe_id": 404}
+
+// search_by_ingredients - What can I make with...
+{"ingredients": ["chicken", "garlic", "onion"]}
+
+// get_recent_recipes - Recently added recipes
+{"days": 365, "limit": 10}
+
+// get_favorites - Highly rated recipes
+{"limit": 10}
+
+// get_meal_plan - Planned meals
+{"start_date": "2024-01-01", "end_date": "2024-01-31"}
+```
+
+### **🧪 Automated Testing**
+
+The project includes comprehensive automated testing:
+
+```bash
+# Quick functionality check
+npm run test:basic
+
+# Full automated test suite  
+npm run test:all
+
+# Unit tests only
+npm run test:unit
+
+# Integration tests only  
+npm run test:integration
+
+# Watch mode for development
+npm run test:watch
+
+# Coverage report
+npm run test:coverage
+
+# Interactive MCP Inspector
+npm run test:inspector
+```
+
+**Test Categories:**
+- **Basic Tests**: Database connectivity, tool loading, server startup
+- **Unit Tests**: Database layer, utilities, logging system
+- **Integration Tests**: All 10 MCP tools with real database
+- **MCP Inspector**: Interactive testing workflow
 
 ## Configuration
 
