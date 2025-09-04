@@ -213,6 +213,43 @@ class DatabaseValidator {
     return error;
   }
 
+  validateCategoryIds(categoryIds) {
+    this.log('DEBUG', `Validating category IDs: ${JSON.stringify(categoryIds)}`);
+    
+    // First validate it's an array
+    const arrayError = this.validateArray(categoryIds, 'categoryIds', {
+      minLength: 1,
+      maxLength: 10,
+      required: true
+    });
+
+    if (arrayError) {
+      this.log('WARN', `Invalid category IDs array: ${arrayError.message}`);
+      return arrayError;
+    }
+
+    // Validate each category ID
+    for (let i = 0; i < categoryIds.length; i++) {
+      const categoryId = categoryIds[i];
+      const error = this.validateCategoryId(categoryId);
+      
+      if (error) {
+        this.log('WARN', `Invalid category ID at index ${i}: ${error.message}`);
+        return this.createValidationError('categoryIds', `Invalid category ID at index ${i}: ${error.message}`, categoryIds);
+      }
+    }
+
+    // Check for duplicates
+    const uniqueIds = [...new Set(categoryIds)];
+    if (uniqueIds.length !== categoryIds.length) {
+      const duplicates = categoryIds.filter((id, index) => categoryIds.indexOf(id) !== index);
+      this.log('WARN', `Duplicate category IDs found: ${duplicates.join(', ')}`);
+      return this.createValidationError('categoryIds', `Duplicate category IDs not allowed: ${duplicates.join(', ')}`, categoryIds);
+    }
+
+    return null;
+  }
+
   validateRecipeData(recipeData) {
     this.log('DEBUG', 'Validating recipe data');
     

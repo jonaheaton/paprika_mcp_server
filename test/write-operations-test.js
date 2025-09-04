@@ -56,10 +56,13 @@ async function runTests() {
     // Test 7: MCP tool integration
     await testMCPToolIntegration();
     
-    // Test 8: Transaction rollback
+    // Test 8: Category operations
+    await testCategoryOperations();
+    
+    // Test 9: Transaction rollback
     await testTransactionRollback();
     
-    // Test 9: Backup restoration
+    // Test 10: Backup restoration
     await testBackupRestoration();
     
     // Cleanup
@@ -277,6 +280,135 @@ async function testMCPToolIntegration() {
     
   } catch (error) {
     throw new Error(`MCP tool test failed: ${error.message}`);
+  }
+}
+
+async function testCategoryOperations() {
+  console.log('\n8. Testing category operations...');
+  
+  try {
+    // Test 8a: Add categories by ID
+    console.log('   Testing add categories by ID...');
+    
+    // Get available categories first
+    const categories = await database.listCategories();
+    if (categories.length < 2) {
+      throw new Error('Not enough categories for testing');
+    }
+    
+    const testCategoryIds = [categories[0].id, categories[1].id];
+    const testCategoryNames = [categories[0].name, categories[1].name];
+    
+    // Test add categories by ID
+    const addResponse = await handleToolCall('add_recipe_categories', {
+      recipe_id: testRecipeId,
+      category_ids: testCategoryIds
+    }, database);
+    
+    if (addResponse.isError) {
+      throw new Error(`Add categories failed: ${addResponse.content[0].text}`);
+    }
+    
+    const addResult = JSON.parse(addResponse.content[0].text);
+    if (!addResult.success) {
+      throw new Error(`Add categories operation failed: ${addResult.message}`);
+    }
+    
+    console.log('   ✅ Add categories by ID successful');
+    console.log(`      Added ${addResult.categories_added.length} categories`);
+    
+    // Test 8b: Add categories by name (should fail - already assigned)
+    console.log('   Testing add duplicate categories...');
+    
+    const duplicateResponse = await handleToolCall('add_recipe_categories', {
+      recipe_id: testRecipeId,
+      category_names: testCategoryNames
+    }, database);
+    
+    if (!duplicateResponse.isError) {
+      console.log('   ⚠️  Expected duplicate category assignment to fail');
+    } else {
+      console.log('   ✅ Duplicate category assignment properly rejected');
+    }
+    
+    // Test 8c: Remove categories by name
+    console.log('   Testing remove categories by name...');
+    
+    const removeResponse = await handleToolCall('remove_recipe_categories', {
+      recipe_id: testRecipeId,
+      category_names: [testCategoryNames[0]]
+    }, database);
+    
+    if (removeResponse.isError) {
+      throw new Error(`Remove categories failed: ${removeResponse.content[0].text}`);
+    }
+    
+    const removeResult = JSON.parse(removeResponse.content[0].text);
+    if (!removeResult.success) {
+      throw new Error(`Remove categories operation failed: ${removeResult.message}`);
+    }
+    
+    console.log('   ✅ Remove categories by name successful');
+    console.log(`      Removed ${removeResult.categories_removed.length} categories`);
+    
+    // Test 8d: Update categories (replace all)
+    console.log('   Testing update categories (replace all)...');
+    
+    const newCategoryIds = categories.length > 2 ? [categories[2].id] : [];
+    
+    const updateResponse = await handleToolCall('update_recipe_categories', {
+      recipe_id: testRecipeId,
+      category_ids: newCategoryIds
+    }, database);
+    
+    if (updateResponse.isError) {
+      throw new Error(`Update categories failed: ${updateResponse.content[0].text}`);
+    }
+    
+    const updateResult = JSON.parse(updateResponse.content[0].text);
+    if (!updateResult.success) {
+      throw new Error(`Update categories operation failed: ${updateResult.message}`);
+    }
+    
+    console.log('   ✅ Update categories successful');
+    console.log(`      Updated categories: ${updateResult.old_categories.length} -> ${updateResult.new_categories.length}`);
+    
+    // Test 8e: Remove all categories
+    console.log('   Testing remove all categories...');
+    
+    const removeAllResponse = await handleToolCall('remove_recipe_categories', {
+      recipe_id: testRecipeId,
+      remove_all: true
+    }, database);
+    
+    if (removeAllResponse.isError) {
+      throw new Error(`Remove all categories failed: ${removeAllResponse.content[0].text}`);
+    }
+    
+    const removeAllResult = JSON.parse(removeAllResponse.content[0].text);
+    if (!removeAllResult.success) {
+      throw new Error(`Remove all categories operation failed: ${removeAllResult.message}`);
+    }
+    
+    console.log('   ✅ Remove all categories successful');
+    console.log(`      Removed ${removeAllResult.categories_removed.length} categories`);
+    
+    // Test 8f: Invalid category operations
+    console.log('   Testing invalid category operations...');
+    
+    const invalidResponse = await handleToolCall('add_recipe_categories', {
+      recipe_id: testRecipeId,
+      category_names: ['NonExistentCategory12345']
+    }, database);
+    
+    if (!invalidResponse.isError) {
+      throw new Error('Expected invalid category name to fail');
+    }
+    
+    console.log('   ✅ Invalid category name properly rejected');
+    
+  } catch (error) {
+    throw new Error(`Category operations test failed: ${error.message}`);
   }
 }
 

@@ -233,6 +233,126 @@ const TOOLS = [
       required: ["recipe_id", "rating"],
       additionalProperties: false
     }
+  },
+
+  {
+    name: "add_recipe_categories",
+    description: "Add one or more categories to a recipe - requires write mode enabled",
+    inputSchema: {
+      type: "object",
+      properties: {
+        recipe_id: {
+          type: "integer",
+          minimum: 1,
+          description: "The ID of the recipe to add categories to"
+        },
+        category_ids: {
+          type: "array",
+          items: { 
+            type: "integer", 
+            minimum: 1 
+          },
+          description: "Array of category IDs to add to the recipe",
+          minItems: 1,
+          maxItems: 10
+        },
+        category_names: {
+          type: "array",
+          items: { 
+            type: "string", 
+            minLength: 1 
+          },
+          description: "Alternative: Array of category names to add (will be resolved to IDs)",
+          minItems: 1,
+          maxItems: 10
+        }
+      },
+      required: ["recipe_id"],
+      oneOf: [
+        { required: ["category_ids"] },
+        { required: ["category_names"] }
+      ],
+      additionalProperties: false
+    }
+  },
+
+  {
+    name: "remove_recipe_categories",
+    description: "Remove one or more categories from a recipe - requires write mode enabled",
+    inputSchema: {
+      type: "object",
+      properties: {
+        recipe_id: {
+          type: "integer",
+          minimum: 1,
+          description: "The ID of the recipe to remove categories from"
+        },
+        category_ids: {
+          type: "array",
+          items: { 
+            type: "integer", 
+            minimum: 1 
+          },
+          description: "Array of category IDs to remove from the recipe",
+          minItems: 1
+        },
+        category_names: {
+          type: "array",
+          items: { 
+            type: "string", 
+            minLength: 1 
+          },
+          description: "Alternative: Array of category names to remove",
+          minItems: 1
+        },
+        remove_all: {
+          type: "boolean",
+          description: "Remove all categories from the recipe",
+          default: false
+        }
+      },
+      required: ["recipe_id"],
+      additionalProperties: false
+    }
+  },
+
+  {
+    name: "update_recipe_categories",
+    description: "Replace all categories for a recipe with a new set (atomic operation) - requires write mode enabled",
+    inputSchema: {
+      type: "object",
+      properties: {
+        recipe_id: {
+          type: "integer",
+          minimum: 1,
+          description: "The ID of the recipe to update categories for"
+        },
+        category_ids: {
+          type: "array",
+          items: { 
+            type: "integer", 
+            minimum: 1 
+          },
+          description: "New complete set of category IDs for the recipe",
+          maxItems: 10
+        },
+        category_names: {
+          type: "array",
+          items: { 
+            type: "string", 
+            minLength: 1 
+          },
+          description: "Alternative: New complete set of category names",
+          maxItems: 10
+        }
+      },
+      required: ["recipe_id"],
+      oneOf: [
+        { required: ["category_ids"] },
+        { required: ["category_names"] }
+      ],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -271,6 +391,15 @@ async function handleToolCall(name, args, database) {
       
       case 'update_recipe_rating':
         return await handleUpdateRecipeRating(args, database);
+      
+      case 'add_recipe_categories':
+        return await handleAddRecipeCategories(args, database);
+      
+      case 'remove_recipe_categories':
+        return await handleRemoveRecipeCategories(args, database);
+      
+      case 'update_recipe_categories':
+        return await handleUpdateRecipeCategories(args, database);
       
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -602,6 +731,268 @@ async function handleUpdateRecipeRating(args, database) {
     // Re-throw other errors to be handled by the general error handler
     throw error;
   }
+}
+
+async function handleAddRecipeCategories(args, database) {
+  if (!args.recipe_id) {
+    throw new Error('recipe_id is required');
+  }
+
+  let categoryIds;
+  
+  // Resolve category names to IDs if provided
+  if (args.category_names) {
+    if (!args.category_names || args.category_names.length === 0) {
+      throw new Error('category_names cannot be empty');
+    }
+    
+    try {
+      const resolvedCategories = await database.resolveCategoryNames(args.category_names);
+      categoryIds = resolvedCategories.map(cat => cat.id);
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            operation: "add_recipe_categories",
+            success: false,
+            error: "category_resolution_failed",
+            message: error.message,
+            recipe_id: args.recipe_id,
+            requested_categories: args.category_names
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  } else {
+    categoryIds = args.category_ids;
+  }
+
+  if (!categoryIds || categoryIds.length === 0) {
+    throw new Error('Either category_ids or category_names is required');
+  }
+
+  try {
+    const result = await database.addRecipeCategories(args.recipe_id, categoryIds);
+    
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          operation: "add_recipe_categories",
+          success: result.success,
+          recipe: {
+            id: result.recipeId,
+            name: result.recipeName
+          },
+          categories_added: result.categoriesAdded,
+          all_categories: result.allCategories,
+          updated_at: result.updatedAt,
+          message: `Successfully added ${result.categoriesAdded.length} categories to "${result.recipeName}"`
+        }, null, 2)
+      }]
+    };
+  } catch (error) {
+    return handleWriteOperationError('add_recipe_categories', error, args.recipe_id);
+  }
+}
+
+async function handleRemoveRecipeCategories(args, database) {
+  if (!args.recipe_id) {
+    throw new Error('recipe_id is required');
+  }
+
+  let categoryIds;
+  
+  if (args.remove_all) {
+    // Get all current categories for this recipe
+    const currentCategories = await database.getRecipeCategories(args.recipe_id);
+    categoryIds = currentCategories.map(cat => cat.id);
+    
+    if (categoryIds.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            operation: "remove_recipe_categories",
+            success: true,
+            message: "Recipe has no categories to remove",
+            recipe_id: args.recipe_id,
+            categories_removed: [],
+            all_categories: []
+          }, null, 2)
+        }]
+      };
+    }
+  } else {
+    // Resolve category names to IDs if provided
+    if (args.category_names) {
+      if (!args.category_names || args.category_names.length === 0) {
+        throw new Error('category_names cannot be empty');
+      }
+      
+      try {
+        const resolvedCategories = await database.resolveCategoryNames(args.category_names);
+        categoryIds = resolvedCategories.map(cat => cat.id);
+      } catch (error) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              operation: "remove_recipe_categories",
+              success: false,
+              error: "category_resolution_failed",
+              message: error.message,
+              recipe_id: args.recipe_id,
+              requested_categories: args.category_names
+            }, null, 2)
+          }],
+          isError: true
+        };
+      }
+    } else {
+      categoryIds = args.category_ids;
+    }
+
+    if (!categoryIds || categoryIds.length === 0) {
+      throw new Error('Either category_ids, category_names, or remove_all is required');
+    }
+  }
+
+  try {
+    const result = await database.removeRecipeCategories(args.recipe_id, categoryIds);
+    
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          operation: "remove_recipe_categories",
+          success: result.success,
+          recipe: {
+            id: result.recipeId,
+            name: result.recipeName
+          },
+          categories_removed: result.categoriesRemoved,
+          all_categories: result.allCategories,
+          updated_at: result.updatedAt,
+          message: `Successfully removed ${result.categoriesRemoved.length} categories from "${result.recipeName}"`
+        }, null, 2)
+      }]
+    };
+  } catch (error) {
+    return handleWriteOperationError('remove_recipe_categories', error, args.recipe_id);
+  }
+}
+
+async function handleUpdateRecipeCategories(args, database) {
+  if (!args.recipe_id) {
+    throw new Error('recipe_id is required');
+  }
+
+  let categoryIds = [];
+  
+  // Resolve category names to IDs if provided
+  if (args.category_names) {
+    if (args.category_names.length > 0) {
+      try {
+        const resolvedCategories = await database.resolveCategoryNames(args.category_names);
+        categoryIds = resolvedCategories.map(cat => cat.id);
+      } catch (error) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              operation: "update_recipe_categories",
+              success: false,
+              error: "category_resolution_failed",
+              message: error.message,
+              recipe_id: args.recipe_id,
+              requested_categories: args.category_names
+            }, null, 2)
+          }],
+          isError: true
+        };
+      }
+    }
+  } else if (args.category_ids) {
+    categoryIds = args.category_ids;
+  }
+
+  try {
+    const result = await database.updateRecipeCategories(args.recipe_id, categoryIds);
+    
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          operation: "update_recipe_categories",
+          success: result.success,
+          recipe: {
+            id: result.recipeId,
+            name: result.recipeName
+          },
+          old_categories: result.oldCategories,
+          new_categories: result.newCategories,
+          updated_at: result.updatedAt,
+          message: `Successfully updated categories for "${result.recipeName}": ${result.oldCategories.length} -> ${result.newCategories.length} categories`
+        }, null, 2)
+      }]
+    };
+  } catch (error) {
+    return handleWriteOperationError('update_recipe_categories', error, args.recipe_id);
+  }
+}
+
+function handleWriteOperationError(operation, error, recipeId) {
+  // Handle specific write operation errors with helpful messages
+  if (error.message.includes('Write operations are disabled')) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          operation: operation,
+          success: false,
+          error: "write_operations_disabled",
+          message: "Category operations require write mode to be enabled. Please enable write operations in the configuration.",
+          recipe_id: recipeId,
+          help: "To enable write operations, set 'enableWriteOperations: true' in the MCP server configuration"
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+  
+  if (error.message.includes('Daily write limit reached')) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          operation: operation,
+          success: false,
+          error: "daily_limit_reached",
+          message: error.message,
+          recipe_id: recipeId
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+  
+  // General error response
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        operation: operation,
+        success: false,
+        error: "operation_failed",
+        message: error.message,
+        recipe_id: recipeId
+      }, null, 2)
+    }],
+    isError: true
+  };
 }
 
 module.exports = {

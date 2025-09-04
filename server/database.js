@@ -818,6 +818,317 @@ class PaprikaDatabase {
       };
     }, operationName);
   }
+
+  // Category Management Methods
+
+  async getRecipeCategories(recipeId) {
+    const sql = `
+      SELECT rc.Z_PK as id, rc.ZNAME as name, rc.ZPARENT as parent_id
+      FROM Z_12CATEGORIES j
+      JOIN ZRECIPECATEGORY rc ON rc.Z_PK = j.Z_13CATEGORIES
+      WHERE j.Z_12RECIPES = ?
+      ORDER BY rc.ZNAME ASC
+    `;
+
+    return new Promise((resolve, reject) => {
+      this.db.all(sql, [recipeId], (err, rows) => {
+        if (err) {
+          this.log('ERROR', `Get recipe categories error: ${err.message}`);
+          reject(err);
+        } else {
+          const categories = rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            parent_id: row.parent_id
+          }));
+          resolve(categories);
+        }
+      });
+    });
+  }
+
+  async resolveCategoryNames(categoryNames) {
+    if (!categoryNames || categoryNames.length === 0) {
+      return [];
+    }
+
+    const placeholders = categoryNames.map(() => '?').join(',');
+    const sql = `
+      SELECT Z_PK as id, ZNAME as name
+      FROM ZRECIPECATEGORY
+      WHERE ZNAME IN (${placeholders})
+    `;
+
+    return new Promise((resolve, reject) => {
+      this.db.all(sql, categoryNames, (err, rows) => {
+        if (err) {
+          this.log('ERROR', `Resolve category names error: ${err.message}`);
+          reject(err);
+        } else {
+          const foundCategories = rows.map(row => ({
+            id: row.id,
+            name: row.name
+          }));
+
+          // Check for any missing categories
+          const foundNames = foundCategories.map(c => c.name);
+          const missingNames = categoryNames.filter(name => !foundNames.includes(name));
+
+          if (missingNames.length > 0) {
+            reject(new Error(`Categories not found: ${missingNames.join(', ')}`));
+          } else {
+            resolve(foundCategories);
+          }
+        }
+      });
+    });
+  }
+
+  async addRecipeCategories(recipeId, categoryIds) {
+    if (!this.config.enableWriteOperations) {
+      throw new Error('Write operations are disabled. Enable write mode in configuration.');
+    }
+
+    // Validate inputs
+    const recipeIdError = this.validator.validateRecipeId(recipeId);
+    if (recipeIdError) {
+      throw new Error(`Invalid recipe ID: ${recipeIdError.message}`);
+    }
+
+    const categoryError = this.validator.validateCategoryIds(categoryIds);
+    if (categoryError) {
+      throw new Error(`Invalid category IDs: ${categoryError.message}`);
+    }
+
+    const operationName = `add_recipe_categories_${recipeId}`;
+    
+    return await this.executeInTransaction(async () => {
+      // Verify recipe exists
+      const checkRecipeSQL = `
+        SELECT Z_PK, ZNAME 
+        FROM ZRECIPE 
+        WHERE Z_PK = ? AND ZINTRASH = 0
+      `;
+      
+      const existingRecipe = await this.getSQL(checkRecipeSQL, [recipeId]);
+      if (!existingRecipe) {
+        throw new Error(`Recipe with ID ${recipeId} not found or is deleted`);
+      }
+
+      // Get current categories
+      const currentCategories = await this.getRecipeCategories(recipeId);
+      const currentCategoryIds = currentCategories.map(c => c.id);
+
+      // Verify all category IDs exist
+      const verifyCategoriesSQL = `
+        SELECT Z_PK as id, ZNAME as name
+        FROM ZRECIPECATEGORY
+        WHERE Z_PK IN (${categoryIds.map(() => '?').join(',')})
+      `;
+      
+      const verifiedCategories = await this.allSQL(verifyCategoriesSQL, categoryIds);
+      if (verifiedCategories.length !== categoryIds.length) {
+        const foundIds = verifiedCategories.map(c => c.id);
+        const missingIds = categoryIds.filter(id => !foundIds.includes(id));
+        throw new Error(`Category IDs not found: ${missingIds.join(', ')}`);
+      }
+
+      // Filter out categories that are already assigned
+      const newCategoryIds = categoryIds.filter(id => !currentCategoryIds.includes(id));
+      
+      if (newCategoryIds.length === 0) {
+        throw new Error('All specified categories are already assigned to this recipe');
+      }
+
+      // Insert new category assignments
+      const insertPromises = newCategoryIds.map(categoryId => {
+        const insertSQL = `
+          INSERT INTO Z_12CATEGORIES (Z_12RECIPES, Z_13CATEGORIES)
+          VALUES (?, ?)
+        `;
+        return this.runSQL(insertSQL, [recipeId, categoryId]);
+      });
+
+      await Promise.all(insertPromises);
+
+      // Get updated categories
+      const updatedCategories = await this.getRecipeCategories(recipeId);
+      const addedCategories = verifiedCategories.filter(c => newCategoryIds.includes(c.id));
+
+      this.log('INFO', `Added ${newCategoryIds.length} categories to recipe ${recipeId}`);
+      
+      return {
+        success: true,
+        recipeId: recipeId,
+        recipeName: existingRecipe.ZNAME,
+        categoriesAdded: addedCategories,
+        allCategories: updatedCategories,
+        updatedAt: new Date().toISOString()
+      };
+    }, operationName);
+  }
+
+  async removeRecipeCategories(recipeId, categoryIds) {
+    if (!this.config.enableWriteOperations) {
+      throw new Error('Write operations are disabled. Enable write mode in configuration.');
+    }
+
+    // Validate inputs
+    const recipeIdError = this.validator.validateRecipeId(recipeId);
+    if (recipeIdError) {
+      throw new Error(`Invalid recipe ID: ${recipeIdError.message}`);
+    }
+
+    const categoryError = this.validator.validateCategoryIds(categoryIds);
+    if (categoryError) {
+      throw new Error(`Invalid category IDs: ${categoryError.message}`);
+    }
+
+    const operationName = `remove_recipe_categories_${recipeId}`;
+    
+    return await this.executeInTransaction(async () => {
+      // Verify recipe exists
+      const checkRecipeSQL = `
+        SELECT Z_PK, ZNAME 
+        FROM ZRECIPE 
+        WHERE Z_PK = ? AND ZINTRASH = 0
+      `;
+      
+      const existingRecipe = await this.getSQL(checkRecipeSQL, [recipeId]);
+      if (!existingRecipe) {
+        throw new Error(`Recipe with ID ${recipeId} not found or is deleted`);
+      }
+
+      // Get current categories
+      const currentCategories = await this.getRecipeCategories(recipeId);
+      const currentCategoryIds = currentCategories.map(c => c.id);
+
+      // Check which categories are actually assigned
+      const categoriesToRemove = categoryIds.filter(id => currentCategoryIds.includes(id));
+      
+      if (categoriesToRemove.length === 0) {
+        throw new Error('None of the specified categories are assigned to this recipe');
+      }
+
+      // Get category names for the response
+      const categoryNamesSQL = `
+        SELECT Z_PK as id, ZNAME as name
+        FROM ZRECIPECATEGORY
+        WHERE Z_PK IN (${categoriesToRemove.map(() => '?').join(',')})
+      `;
+      
+      const removedCategoryInfo = await this.allSQL(categoryNamesSQL, categoriesToRemove);
+
+      // Remove category assignments
+      const deleteSQL = `
+        DELETE FROM Z_12CATEGORIES
+        WHERE Z_12RECIPES = ? AND Z_13CATEGORIES IN (${categoriesToRemove.map(() => '?').join(',')})
+      `;
+      
+      const result = await this.runSQL(deleteSQL, [recipeId, ...categoriesToRemove]);
+
+      if (result.changes === 0) {
+        throw new Error('Failed to remove categories - no rows affected');
+      }
+
+      // Get updated categories
+      const updatedCategories = await this.getRecipeCategories(recipeId);
+
+      this.log('INFO', `Removed ${categoriesToRemove.length} categories from recipe ${recipeId}`);
+      
+      return {
+        success: true,
+        recipeId: recipeId,
+        recipeName: existingRecipe.ZNAME,
+        categoriesRemoved: removedCategoryInfo,
+        allCategories: updatedCategories,
+        updatedAt: new Date().toISOString()
+      };
+    }, operationName);
+  }
+
+  async updateRecipeCategories(recipeId, newCategoryIds) {
+    if (!this.config.enableWriteOperations) {
+      throw new Error('Write operations are disabled. Enable write mode in configuration.');
+    }
+
+    // Validate inputs
+    const recipeIdError = this.validator.validateRecipeId(recipeId);
+    if (recipeIdError) {
+      throw new Error(`Invalid recipe ID: ${recipeIdError.message}`);
+    }
+
+    const categoryError = this.validator.validateCategoryIds(newCategoryIds);
+    if (categoryError) {
+      throw new Error(`Invalid category IDs: ${categoryError.message}`);
+    }
+
+    const operationName = `update_recipe_categories_${recipeId}`;
+    
+    return await this.executeInTransaction(async () => {
+      // Verify recipe exists
+      const checkRecipeSQL = `
+        SELECT Z_PK, ZNAME 
+        FROM ZRECIPE 
+        WHERE Z_PK = ? AND ZINTRASH = 0
+      `;
+      
+      const existingRecipe = await this.getSQL(checkRecipeSQL, [recipeId]);
+      if (!existingRecipe) {
+        throw new Error(`Recipe with ID ${recipeId} not found or is deleted`);
+      }
+
+      // Get current categories
+      const oldCategories = await this.getRecipeCategories(recipeId);
+
+      // Verify all new category IDs exist
+      if (newCategoryIds.length > 0) {
+        const verifyCategoriesSQL = `
+          SELECT Z_PK as id, ZNAME as name
+          FROM ZRECIPECATEGORY
+          WHERE Z_PK IN (${newCategoryIds.map(() => '?').join(',')})
+        `;
+        
+        const verifiedCategories = await this.allSQL(verifyCategoriesSQL, newCategoryIds);
+        if (verifiedCategories.length !== newCategoryIds.length) {
+          const foundIds = verifiedCategories.map(c => c.id);
+          const missingIds = newCategoryIds.filter(id => !foundIds.includes(id));
+          throw new Error(`Category IDs not found: ${missingIds.join(', ')}`);
+        }
+      }
+
+      // Remove all existing categories
+      const deleteSQL = `DELETE FROM Z_12CATEGORIES WHERE Z_12RECIPES = ?`;
+      await this.runSQL(deleteSQL, [recipeId]);
+
+      // Add new categories
+      if (newCategoryIds.length > 0) {
+        const insertPromises = newCategoryIds.map(categoryId => {
+          const insertSQL = `
+            INSERT INTO Z_12CATEGORIES (Z_12RECIPES, Z_13CATEGORIES)
+            VALUES (?, ?)
+          `;
+          return this.runSQL(insertSQL, [recipeId, categoryId]);
+        });
+
+        await Promise.all(insertPromises);
+      }
+
+      // Get updated categories
+      const newCategories = await this.getRecipeCategories(recipeId);
+
+      this.log('INFO', `Updated categories for recipe ${recipeId}: ${oldCategories.length} -> ${newCategories.length}`);
+      
+      return {
+        success: true,
+        recipeId: recipeId,
+        recipeName: existingRecipe.ZNAME,
+        oldCategories: oldCategories,
+        newCategories: newCategories,
+        updatedAt: new Date().toISOString()
+      };
+    }, operationName);
+  }
 }
 
 module.exports = PaprikaDatabase;
