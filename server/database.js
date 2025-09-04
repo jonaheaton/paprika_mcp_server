@@ -743,6 +743,81 @@ class PaprikaDatabase {
   async getFavorites(limit = 50) {
     return this.searchRecipes('', { favorites: true, limit });
   }
+
+  // Write Operations - Recipe Management
+
+  async updateRecipeRating(recipeId, rating) {
+    if (!this.config.enableWriteOperations) {
+      throw new Error('Write operations are disabled. Enable write mode in configuration.');
+    }
+
+    // Validate inputs
+    const recipeIdError = this.validator.validateRecipeId(recipeId);
+    if (recipeIdError) {
+      throw new Error(`Invalid recipe ID: ${recipeIdError.message}`);
+    }
+
+    const ratingError = this.validator.validateRecipeRating(rating);
+    if (ratingError) {
+      throw new Error(`Invalid rating: ${ratingError.message}`);
+    }
+
+    const operationName = `update_recipe_rating_${recipeId}_to_${rating}`;
+    
+    return await this.executeInTransaction(async () => {
+      // First verify the recipe exists and is not deleted
+      const checkRecipeSQL = `
+        SELECT Z_PK, ZNAME, ZRATING 
+        FROM ZRECIPE 
+        WHERE Z_PK = ? AND ZINTRASH = 0
+      `;
+      
+      const existingRecipe = await this.getSQL(checkRecipeSQL, [recipeId]);
+      
+      if (!existingRecipe) {
+        throw new Error(`Recipe with ID ${recipeId} not found or is deleted`);
+      }
+
+      const oldRating = existingRecipe.ZRATING;
+      
+      // Update the recipe rating
+      const updateSQL = `
+        UPDATE ZRECIPE 
+        SET ZRATING = ? 
+        WHERE Z_PK = ? AND ZINTRASH = 0
+      `;
+      
+      const result = await this.runSQL(updateSQL, [rating, recipeId]);
+
+      if (result.changes === 0) {
+        throw new Error(`Failed to update recipe rating - no rows affected`);
+      }
+
+      // Verify the update was successful
+      const verifySQL = `
+        SELECT ZRATING 
+        FROM ZRECIPE 
+        WHERE Z_PK = ? AND ZINTRASH = 0
+      `;
+      
+      const updatedRecipe = await this.getSQL(verifySQL, [recipeId]);
+      
+      if (!updatedRecipe || updatedRecipe.ZRATING !== rating) {
+        throw new Error('Rating update verification failed');
+      }
+
+      this.log('INFO', `Recipe rating updated: ID ${recipeId} from ${oldRating} to ${rating}`);
+      
+      return {
+        success: true,
+        recipeId: recipeId,
+        recipeName: existingRecipe.ZNAME,
+        oldRating: oldRating,
+        newRating: rating,
+        updatedAt: new Date().toISOString()
+      };
+    }, operationName);
+  }
 }
 
 module.exports = PaprikaDatabase;

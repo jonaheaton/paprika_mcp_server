@@ -61,6 +61,10 @@
     {
       "name": "get_favorites",
       "description": "Retrieve user's favorite recipes with ratings and quick access"
+    },
+    {
+      "name": "update_recipe_rating",
+      "description": "Update the star rating (0-5) for a specific recipe - requires write mode enabled"
     }
   ],
   "user_config": {

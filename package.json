@@ -12,6 +12,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:basic": "node test/basic-test.js",
+    "test:write": "node test/write-operations-test.js",
     "test:inspector": "node test/inspector-test.js",
     "test:runner": "node scripts/test-runner.js",
     "test:runner:watch": "node scripts/test-runner.js --watch",

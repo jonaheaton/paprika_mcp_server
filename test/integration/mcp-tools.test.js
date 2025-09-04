@@ -31,7 +31,8 @@ describe('MCP Tools Integration Tests', () => {
         'get_pantry_inventory',
         'get_recipe_photos',
         'get_recent_recipes',
-        'get_favorites'
+        'get_favorites',
+        'update_recipe_rating'
       ];
 
       const toolNames = TOOLS.map(tool => tool.name);

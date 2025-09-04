@@ -210,6 +210,29 @@ const TOOLS = [
       },
       additionalProperties: false
     }
+  },
+
+  {
+    name: "update_recipe_rating",
+    description: "Update the star rating (0-5) for a specific recipe - requires write mode enabled",
+    inputSchema: {
+      type: "object",
+      properties: {
+        recipe_id: {
+          type: "integer",
+          minimum: 1,
+          description: "Unique recipe ID to update rating for"
+        },
+        rating: {
+          type: "number",
+          minimum: 0,
+          maximum: 5,
+          description: "New rating value (0-5 stars, decimals allowed)"
+        }
+      },
+      required: ["recipe_id", "rating"],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -245,6 +268,9 @@ async function handleToolCall(name, args, database) {
       
       case 'get_favorites':
         return await handleGetFavorites(args, database);
+      
+      case 'update_recipe_rating':
+        return await handleUpdateRecipeRating(args, database);
       
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -507,6 +533,75 @@ async function handleGetFavorites(args, database) {
       }, null, 2)
     }]
   };
+}
+
+async function handleUpdateRecipeRating(args, database) {
+  if (!args.recipe_id) {
+    throw new Error('recipe_id is required');
+  }
+  
+  if (args.rating === undefined || args.rating === null) {
+    throw new Error('rating is required');
+  }
+
+  try {
+    const result = await database.updateRecipeRating(args.recipe_id, args.rating);
+    
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          operation: "update_recipe_rating",
+          success: result.success,
+          recipe: {
+            id: result.recipeId,
+            name: result.recipeName,
+            old_rating: result.oldRating,
+            new_rating: result.newRating,
+            updated_at: result.updatedAt
+          },
+          message: `Successfully updated rating for "${result.recipeName}" from ${result.oldRating} to ${result.newRating} stars`
+        }, null, 2)
+      }]
+    };
+  } catch (error) {
+    // Handle specific write operation errors with helpful messages
+    if (error.message.includes('Write operations are disabled')) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            operation: "update_recipe_rating",
+            success: false,
+            error: "write_operations_disabled",
+            message: "Recipe rating updates require write mode to be enabled. Please enable write operations in the configuration.",
+            recipe_id: args.recipe_id,
+            rating: args.rating,
+            help: "To enable write operations, set 'enableWriteOperations: true' in the MCP server configuration"
+          }, null, 2)
+        }]
+      };
+    }
+    
+    if (error.message.includes('Daily write limit reached')) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            operation: "update_recipe_rating",
+            success: false,
+            error: "daily_limit_reached",
+            message: error.message,
+            recipe_id: args.recipe_id,
+            rating: args.rating
+          }, null, 2)
+        }]
+      };
+    }
+    
+    // Re-throw other errors to be handled by the general error handler
+    throw error;
+  }
 }
 
 module.exports = {
