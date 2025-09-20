@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-package-lock.json
+node_modules/.package-lock.json
 
 # Logs
 logs/
@@ -12,6 +12,7 @@ logs/
 *.temp
 
 # Database files (keep schema, ignore data)
+data/Paprika.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
 data/.DS_Store
