@@ -3,9 +3,9 @@
   "dxt_version": "0.1",
   "name": "paprika-recipe-manager",
   "display_name": "Paprika Recipe Manager",
-  "version": "1.0.0",
-  "description": "Access and search your Paprika recipe database with natural language queries",
-  "long_description": "A comprehensive MCP extension that provides intelligent access to your Paprika recipe database. Search recipes by ingredients, browse categories, view meal plans, check grocery lists, and explore your pantry inventory. Perfect for meal planning, cooking inspiration, and recipe management through AI-powered queries.",
+  "version": "1.1.0",
+  "description": "Complete Paprika recipe database management with natural language queries and write operations",
+  "long_description": "A comprehensive MCP extension that provides full access to your Paprika recipe database with both read and write capabilities. Search recipes by ingredients, browse categories, view meal plans, check grocery lists, explore pantry inventory, update recipe ratings, and manage recipe categories. Features automatic database backups, transaction safety, and intelligent category management through AI-powered queries.",
   "author": {
     "name": "Jonah Eaton",
     "email": "jonah@jonaheaton.com",
@@ -65,6 +65,18 @@
     {
       "name": "update_recipe_rating",
       "description": "Update the star rating (0-5) for a specific recipe - requires write mode enabled"
+    },
+    {
+      "name": "add_recipe_categories",
+      "description": "Add one or more categories to a recipe - requires write mode enabled"
+    },
+    {
+      "name": "remove_recipe_categories", 
+      "description": "Remove categories from a recipe or remove all categories - requires write mode enabled"
+    },
+    {
+      "name": "update_recipe_categories",
+      "description": "Replace all categories for a recipe with new ones - requires write mode enabled"
     }
   ],
   "user_config": {
@@ -72,7 +84,7 @@
       "title": "Database Path",
       "type": "file",
       "description": "Path to Paprika SQLite database file",
-      "default": "${__dirname}/data/Paprika.sqlite",
+      "default": "/Users/jonaheaton/Documents/paprika_mcp_server/data/Paprika.sqlite",
       "required": true
     },
     "debug_mode": {
@@ -91,25 +103,11 @@
       "max": 500,
       "required": false
     },
-    "enable_meal_planning": {
-      "title": "Enable Meal Planning",
-      "type": "boolean",
-      "description": "Enable meal planning features and queries",
-      "default": true,
-      "required": false
-    },
-    "enable_grocery_features": {
-      "title": "Enable Grocery Features",
-      "type": "boolean",
-      "description": "Enable grocery list and pantry inventory features",
-      "default": true,
-      "required": false
-    },
     "enable_write_operations": {
       "title": "Enable Write Operations",
       "type": "boolean",
       "description": "Allow database modifications (backup strongly recommended)",
-      "default": false,
+      "default": true,
       "required": false
     },
     "auto_backup_enabled": {
@@ -117,22 +115,6 @@
       "type": "boolean",
       "description": "Automatically backup database before write operations",
       "default": true,
-      "required": false
-    },
-    "require_confirmation": {
-      "title": "Require Confirmation",
-      "type": "boolean",
-      "description": "Require confirmation for destructive operations",
-      "default": true,
-      "required": false
-    },
-    "max_daily_writes": {
-      "title": "Daily Write Limit",
-      "type": "number",
-      "description": "Maximum number of write operations per day",
-      "default": 1000,
-      "min": 1,
-      "max": 10000,
       "required": false
     }
   },

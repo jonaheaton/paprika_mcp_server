@@ -1,6 +1,6 @@
 {
   "name": "paprika-recipe-manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for accessing Paprika recipe database",
   "main": "server/index.js",
   "scripts": {
